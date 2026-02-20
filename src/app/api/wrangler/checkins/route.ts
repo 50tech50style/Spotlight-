@@ -9,7 +9,7 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "Missing shiftId" }, { status: 400 });
   }
 
-  const supa = supabaseServer();
+  const supa = await supabaseServer();
 
   const { data, error } = await supa
     .from("checkins")

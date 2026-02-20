@@ -8,7 +8,7 @@ function minutesSince(ts: string | null) {
 }
 
 export async function GET(req: Request) {
-  const supa = supabaseServer();
+  const supa = await supabaseServer();
 
   const { searchParams } = new URL(req.url);
   const shiftId = searchParams.get("shiftId");

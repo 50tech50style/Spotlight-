@@ -14,7 +14,7 @@ export async function POST(req: Request) {
     );
   }
 
-  const supa = supabaseServer();
+  const supa = await supabaseServer();
 
   const { data, error } = await supa
     .from("shifts")

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabaseServer";
 
 export async function GET() {
-  const supa = supabaseServer();
+  const supa = await supabaseServer();
 
   const { data, error } = await supa
     .from("shifts")

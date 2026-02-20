@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabaseServer";
 
 export async function POST(req: Request) {
-  const supa = supabaseServer();
+  const supa = await supabaseServer();
 
   const body = await req.json().catch(() => ({}));
   const shiftId = body.shiftId as string | undefined;

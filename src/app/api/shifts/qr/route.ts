@@ -7,7 +7,7 @@ function sign(payload: string, secret: string) {
 }
 
 export async function POST(req: Request) {
-  const supa = supabaseServer();
+  const supa = await supabaseServer();
   const { shiftId } = await req.json();
 
   if (!shiftId) {

@@ -9,7 +9,7 @@ function yearsBetween(dob: Date, now: Date) {
 }
 
 export async function POST(req: Request) {
-  const supa = supabaseServer();
+  const supa = await supabaseServer();
 
   const {
     full_name,

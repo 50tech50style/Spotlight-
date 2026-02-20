@@ -3,7 +3,7 @@ import crypto from "crypto";
 import { supabaseServer } from "@/lib/supabaseServer";
 
 export async function POST() {
-  const supa = supabaseServer();
+  const supa = await supabaseServer();
 
   const secret = crypto.randomBytes(32).toString("hex");
   const join_code = crypto.randomBytes(4).toString("hex"); // 8 chars

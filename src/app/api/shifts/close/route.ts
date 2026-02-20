@@ -12,7 +12,7 @@ export async function POST(req: Request) {
       );
     }
 
-    const supa = supabaseServer();
+    const supa = await supabaseServer();
 
     // Close the shift
     const { data, error } = await supa

@@ -45,7 +45,7 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "shiftId is required" }, { status: 400 });
   }
 
-  const supa = supabaseServer();
+  const supa = await supabaseServer();
 
   // Get current_group_size from shifts
   const { data: shift, error: shiftErr } = await supa
