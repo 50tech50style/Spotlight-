@@ -1,26 +1,93 @@
 @import "tailwindcss";
 
+/* ---------- SPOTLIGHT Icy Neon Theme + Brand Gold ---------- */
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #000000;
+  --foreground: #ffffff;
+
+  /* Brand Yellow (more yellow than orange) */
+  --gold: #FFE066;
+  --gold-soft: rgba(255, 224, 102, 0.22);
+  --gold-glow: rgba(255, 224, 102, 0.40);
+
+  /* Cool glow tones */
+  --whiteGlowStrong: rgba(255, 255, 255, 0.18);
+  --whiteGlowSoft: rgba(255, 255, 255, 0.08);
+  --grayGlow: rgba(160, 160, 160, 0.10);
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html {
+  color-scheme: dark;
+  background: var(--background);
 }
 
 body {
-  background: var(--background);
+  margin: 0;
+  min-height: 100vh;
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+
+  font-family: var(--font-geist-sans), system-ui, -apple-system, Segoe UI,
+    Roboto, Helvetica, Arial, sans-serif;
+
+  font-weight: 500;
+
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+
+  /* White/gray neon velvet */
+  background:
+    radial-gradient(
+      1000px 600px at 50% -150px,
+      var(--whiteGlowStrong),
+      transparent 70%
+    ),
+    radial-gradient(
+      900px 500px at 50% 120%,
+      var(--whiteGlowSoft),
+      transparent 75%
+    ),
+    radial-gradient(
+      600px 400px at 20% 50%,
+      var(--grayGlow),
+      transparent 70%
+    ),
+    linear-gradient(
+      to bottom,
+      #000000 0%,
+      #070707 50%,
+      #000000 100%
+    );
+}
+
+/* Selection */
+::selection {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+/* Remove mobile tap highlight */
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* ---------- Glow utilities ---------- */
+
+.text-glow-white {
+  text-shadow: 0 0 18px rgba(255, 255, 255, 0.15),
+    0 0 40px rgba(255, 255, 255, 0.08);
+}
+
+.glow-white {
+  box-shadow: 0 0 24px rgba(255, 255, 255, 0.15),
+    0 0 60px rgba(255, 255, 255, 0.08);
+}
+
+/* Brand gold utilities (use these in className) */
+.text-gold {
+  color: var(--gold);
+  text-shadow: 0 0 18px var(--gold-soft);
+}
+
+.glow-gold {
+  box-shadow: 0 0 44px var(--gold-glow), 0 0 90px var(--gold-soft);
 }
