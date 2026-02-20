@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { supabase } from "@/lib/supabaseClient";
+import { supabaseBrowser } from "@/lib/supabaseClient";
 
 type Status =
   | "loading"
@@ -15,6 +15,8 @@ type Status =
 const GOLD = "#FFE066";
 
 export default function StageSignupClient() {
+  const supabase = supabaseBrowser(); // ✅ create the client in the browser, inside the component
+
   const params = useSearchParams();
   const shiftId = params.get("shift");
   const code = params.get("code");
@@ -23,7 +25,6 @@ export default function StageSignupClient() {
   const [msg, setMsg] = useState<string | null>(null);
   const [joining, setJoining] = useState(false);
 
-  // Small helper for consistent button style
   const primaryBtnStyle = useMemo(
     () => ({
       backgroundColor: GOLD,
@@ -37,13 +38,11 @@ export default function StageSignupClient() {
     async function run() {
       setMsg(null);
 
-      // Must have shift + code
       if (!shiftId || !code) {
         setStatus("invalid_link");
         return;
       }
 
-      // Must be logged in
       const { data: u } = await supabase.auth.getUser();
       const uid = u.user?.id ?? null;
       if (!uid) {
@@ -51,7 +50,6 @@ export default function StageSignupClient() {
         return;
       }
 
-      // Validate link against ACTIVE shift + join_code
       const active = await fetch("/api/shifts/active").then((r) => r.json());
       const activeShift = active.shift;
 
@@ -64,7 +62,6 @@ export default function StageSignupClient() {
         return;
       }
 
-      // Check approved check-in
       const { data: checkin, error } = await supabase
         .from("checkins")
         .select("id,status")
@@ -90,7 +87,7 @@ export default function StageSignupClient() {
 
     setStatus("loading");
     run();
-  }, [shiftId, code]);
+  }, [shiftId, code, supabase]);
 
   async function continueFlow() {
     setMsg(null);
@@ -138,7 +135,6 @@ export default function StageSignupClient() {
 
   return (
     <div className="relative z-0 min-h-screen text-white flex items-center justify-center px-6 py-14 overflow-hidden">
-      {/* Background image */}
       <div
         className="absolute inset-0 z-0 bg-cover bg-center scale-[1.03]"
         style={{
@@ -147,11 +143,7 @@ export default function StageSignupClient() {
         }}
         aria-hidden="true"
       />
-
-      {/* Lighter overlay */}
       <div className="absolute inset-0 z-0 bg-black/20" aria-hidden="true" />
-
-      {/* Vignette (no blur) */}
       <div
         className="absolute inset-0 z-0 pointer-events-none"
         style={{
@@ -161,9 +153,7 @@ export default function StageSignupClient() {
         aria-hidden="true"
       />
 
-      {/* Foreground panel */}
       <div className="relative z-10 w-full max-w-md text-center rounded-3xl border border-white/12 bg-black/22 backdrop-blur-xl shadow-[0_0_70px_rgba(255,255,255,0.10)] px-6 py-10">
-        {/* Brand */}
         <p
           className="text-[10px] md:text-xs tracking-[0.35em]"
           style={{
@@ -182,7 +172,6 @@ export default function StageSignupClient() {
           Confirm your access for tonight, then choose your stage options.
         </p>
 
-        {/* Divider */}
         <div className="my-8 flex items-center justify-center">
           <div
             className="h-px w-16 md:w-24"
@@ -193,16 +182,13 @@ export default function StageSignupClient() {
           />
         </div>
 
-        {/* States */}
         {status === "loading" && (
           <p className="text-sm text-zinc-100/70">Checking access…</p>
         )}
 
         {status === "needs_login" && (
           <>
-            <p className="text-sm text-zinc-100/80">
-              Please log in to continue.
-            </p>
+            <p className="text-sm text-zinc-100/80">Please log in to continue.</p>
 
             <Link
               href="/login"
@@ -223,9 +209,7 @@ export default function StageSignupClient() {
 
         {status === "invalid_link" && (
           <>
-            <p className="text-sm text-zinc-100/85">
-              This signup link isn’t active.
-            </p>
+            <p className="text-sm text-zinc-100/85">This signup link isn’t active.</p>
             <p className="mt-2 text-xs text-zinc-100/60">
               Please scan the current QR on the stage screen.
             </p>
@@ -266,9 +250,7 @@ export default function StageSignupClient() {
         {status === "ready" && (
           <>
             <p className="text-sm text-zinc-100/85">✅ Cleared for tonight.</p>
-            <p className="mt-2 text-xs text-zinc-100/60">
-              Tap continue to join standby.
-            </p>
+            <p className="mt-2 text-xs text-zinc-100/60">Tap continue to join standby.</p>
 
             <button
               onClick={continueFlow}

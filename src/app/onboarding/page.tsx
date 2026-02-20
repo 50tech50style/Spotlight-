@@ -1,10 +1,15 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { supabase } from "@/lib/supabaseClient";
+import { supabaseBrowser } from "@/lib/supabaseClient";
 
 const GOLD = "#FFE066";
+
+const PRIMARY_BTN_STYLE: React.CSSProperties = {
+  backgroundColor: GOLD,
+  boxShadow: "0 0 44px rgba(245,197,66,0.40), 0 0 90px rgba(245,197,66,0.16)",
+};
 
 type ChannelPrefs = { push: boolean; email: boolean };
 type NotificationPrefs = {
@@ -61,7 +66,9 @@ function Toggle({
         onClick={() => onChange(!value)}
         className={[
           "relative h-7 w-12 rounded-full border transition",
-          value ? "bg-emerald-500/20 border-emerald-400/30" : "bg-white/5 border-white/15",
+          value
+            ? "bg-emerald-500/20 border-emerald-400/30"
+            : "bg-white/5 border-white/15",
           disabled ? "opacity-50 cursor-not-allowed" : "hover:border-white/30",
         ].join(" ")}
         aria-pressed={value}
@@ -79,6 +86,8 @@ function Toggle({
 
 export default function OnboardingPage() {
   const router = useRouter();
+  const supabase = supabaseBrowser(); // ✅ create client inside component (no hooks)
+
   const [uid, setUid] = useState<string | null>(null);
 
   const [loading, setLoading] = useState(true);
@@ -93,7 +102,7 @@ export default function OnboardingPage() {
     email: false,
   });
 
-  const [notifPrefs, setNotifPrefs] = useState<NotificationPrefs>({
+  const DEFAULT_NOTIFS: NotificationPrefs = {
     ten_min: true,
     five_min: true,
     on_deck: true,
@@ -101,15 +110,9 @@ export default function OnboardingPage() {
     stage_hold: true,
     vibrate: true,
     silent_mode: false,
-  });
+  };
 
-  const primaryBtnStyle = useMemo(
-    () => ({
-      backgroundColor: GOLD,
-      boxShadow: "0 0 44px rgba(245,197,66,0.40), 0 0 90px rgba(245,197,66,0.16)",
-    }),
-    []
-  );
+  const [notifPrefs, setNotifPrefs] = useState<NotificationPrefs>(DEFAULT_NOTIFS);
 
   useEffect(() => {
     async function boot() {
@@ -126,7 +129,6 @@ export default function OnboardingPage() {
 
       setUid(id);
 
-      // Load existing profile if any
       const { data, error } = await supabase
         .from("profiles")
         .select("id, full_name, dob, channel_prefs, notification_prefs, onboarding_complete")
@@ -144,9 +146,8 @@ export default function OnboardingPage() {
         setFullName(p.full_name ?? "");
         setDob(p.dob ?? "");
         setChannelPrefs((p.channel_prefs as any) ?? { push: true, email: false });
-        setNotifPrefs((p.notification_prefs as any) ?? notifPrefs);
+        setNotifPrefs((p.notification_prefs as any) ?? DEFAULT_NOTIFS);
 
-        // If already complete, go straight to performer dashboard
         if (p.onboarding_complete) {
           router.replace("/performer");
           return;
@@ -162,7 +163,6 @@ export default function OnboardingPage() {
 
   async function save() {
     setErr(null);
-
     if (!uid) return;
 
     const name = fullName.trim();
@@ -173,24 +173,25 @@ export default function OnboardingPage() {
     if (Number.isNaN(age)) return setErr("DOB format looks invalid.");
     if (age < 21) return setErr("You must be 21+ to use this app.");
 
-    // if silent_mode is on, force vibrate off (optional UX rule)
     const finalNotifs: NotificationPrefs = notifPrefs.silent_mode
       ? { ...notifPrefs, vibrate: false }
       : notifPrefs;
 
     setSaving(true);
     try {
-      const { error } = await supabase.from("profiles").upsert(
-        {
-          id: uid,
-          full_name: name,
-          dob,
-          channel_prefs: channelPrefs,
-          notification_prefs: finalNotifs,
-          onboarding_complete: true,
-        },
-        { onConflict: "id" }
-      );
+      const { error } = await supabase
+        .from("profiles")
+        .upsert(
+          {
+            id: uid,
+            full_name: name,
+            dob,
+            channel_prefs: channelPrefs,
+            notification_prefs: finalNotifs,
+            onboarding_complete: true,
+          },
+          { onConflict: "id" }
+        );
 
       if (error) throw error;
 
@@ -253,7 +254,9 @@ export default function OnboardingPage() {
 
             <div className="space-y-3">
               <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3">
-                <label className="text-xs text-white/55 tracking-[0.2em] uppercase">Full name</label>
+                <label className="text-xs text-white/55 tracking-[0.2em] uppercase">
+                  Full name
+                </label>
                 <input
                   value={fullName}
                   onChange={(e) => setFullName(e.target.value)}
@@ -263,7 +266,9 @@ export default function OnboardingPage() {
               </div>
 
               <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3">
-                <label className="text-xs text-white/55 tracking-[0.2em] uppercase">Date of birth</label>
+                <label className="text-xs text-white/55 tracking-[0.2em] uppercase">
+                  Date of birth
+                </label>
                 <input
                   type="date"
                   value={dob}
@@ -339,7 +344,7 @@ export default function OnboardingPage() {
               onClick={save}
               disabled={saving}
               className="mt-8 w-full rounded-full text-black py-3.5 text-sm font-semibold transition hover:opacity-90 disabled:opacity-60"
-              style={primaryBtnStyle}
+              style={PRIMARY_BTN_STYLE}
             >
               {saving ? "Saving…" : "Finish setup"}
             </button>

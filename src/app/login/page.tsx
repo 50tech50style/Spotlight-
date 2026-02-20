@@ -3,17 +3,19 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { supabase } from "@/lib/supabaseClient";
+import { supabaseBrowser } from "@/lib/supabaseClient";
 
 type Mode = "login" | "signup";
 
 export default function LoginPage() {
+  const supabase = supabaseBrowser();
   const router = useRouter();
 
   const [mode, setMode] = useState<Mode | null>(null);
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
+  
 
   // If user is already logged in (or becomes logged in), send them to performer flow.
   // /performer should handle redirecting to /onboarding if onboarding isn't complete.
