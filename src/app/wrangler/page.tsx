@@ -47,9 +47,38 @@ function shortId(id: string) {
   return id.slice(0, 8);
 }
 
+/** Investor/demo-friendly names (falls back to shortId for real DB ids). */
+const NAME_BY_PERFORMER_ID: Record<string, string> = {
+  perf_amiri: "Amiri",
+  perf_diamond: "Diamond",
+  perf_barbie: "Barbie",
+  perf_lola: "Lola",
+  perf_mila: "Mila",
+  perf_nina: "Nina",
+  perf_zoe: "Zoe",
+  perf_aria: "Aria",
+  perf_ivy: "Ivy",
+  perf_luna: "Luna",
+  perf_kiki: "Kiki",
+  perf_sky: "Sky",
+  perf_ava: "Ava",
+  perf_rose: "Rose",
+  perf_noor: "Noor",
+  perf_sasha: "Sasha",
+  perf_talia: "Talia",
+  perf_jade: "Jade",
+  perf_ruby: "Ruby",
+  perf_muse: "Muse",
+};
+
+function displayPerformer(performerId: string) {
+  return NAME_BY_PERFORMER_ID[performerId] ?? shortId(performerId);
+}
+
 function statusPill(status: string) {
   const s = status.toLowerCase();
   if (s.includes("confirm")) return "bg-emerald-500/15 text-emerald-200 border-emerald-500/25";
+  if (s.includes("approved")) return "bg-emerald-500/15 text-emerald-200 border-emerald-500/25";
   if (s.includes("cancel")) return "bg-red-500/15 text-red-200 border-red-500/25";
   if (s.includes("pending")) return "bg-yellow-500/15 text-yellow-100 border-yellow-500/25";
   if (s.includes("queued")) return "bg-white/10 text-zinc-100 border-white/10";
@@ -135,9 +164,20 @@ function ShellCard({
   );
 }
 
-function Chip({ children }: { children: ReactNode }) {
+function Chip({
+  children,
+  className = "",
+}: {
+  children: ReactNode;
+  className?: string;
+}) {
   return (
-    <span className="inline-flex items-center rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white/85">
+    <span
+      className={[
+        "inline-flex items-center rounded-lg border px-3 py-2 text-sm",
+        className,
+      ].join(" ")}
+    >
       {children}
     </span>
   );
@@ -166,9 +206,13 @@ function TimeBucketRow({
 
       <div className="mt-3 flex flex-wrap gap-2">
         {preview.map((r) => (
-          <Chip key={r.id}>{shortId(r.performer_id)}</Chip>
+          <Chip key={r.id} className={statusPill(r.status)}>
+            {displayPerformer(r.performer_id)}
+          </Chip>
         ))}
-        {extra > 0 ? <Chip>+{extra}</Chip> : null}
+        {extra > 0 ? (
+          <Chip className="border-white/10 bg-white/5 text-white/75">+{extra}</Chip>
+        ) : null}
       </div>
     </div>
   );
@@ -199,8 +243,108 @@ export default function WranglerPage() {
     return `${pad(h)}:${pad(m)}:${pad(s)}`;
   }, [elapsedMs]);
 
-  // Top tabs only
   const [groupsView, setGroupsView] = useState<"current" | "history">("current");
+
+  const isMock =
+    typeof window !== "undefined" &&
+    new URLSearchParams(window.location.search).get("mock") === "1";
+
+  const mock = useMemo(() => {
+    const now = new Date();
+
+    const isoAt = (d: Date) => d.toISOString();
+    const atHour = (hoursAgo: number, minutes: number) => {
+      const d = new Date(now);
+      d.setMinutes(minutes, 0, 0);
+      d.setHours(d.getHours() - hoursAgo);
+      return isoAt(d);
+    };
+
+    const shift: Shift = {
+      id: "shift_demo_001",
+      created_at: atHour(6, 5),
+      current_group_size: 3,
+      is_active: true,
+    };
+
+    const makeSignup = (
+      performer_id: string,
+      status: string,
+      fields: Partial<SignupRow>
+    ): SignupRow => ({
+      id: `su_${performer_id}_${Math.random().toString(16).slice(2, 10)}`,
+      performer_id,
+      status,
+      queued_at: null,
+      grouped_at: null,
+      done_at: null,
+      wait_minutes: null,
+      ...fields,
+    });
+
+    // Make statuses match your statusPill() rules
+    const assigned: SignupRow[] = [
+      makeSignup("perf_amiri", "confirmed", { grouped_at: atHour(0, 42) }),
+      makeSignup("perf_diamond", "confirmed", { grouped_at: atHour(0, 18) }),
+      makeSignup("perf_barbie", "confirmed", { grouped_at: atHour(0, 5) }),
+
+      makeSignup("perf_lola", "confirmed", { grouped_at: atHour(1, 50) }),
+      makeSignup("perf_mila", "confirmed", { grouped_at: atHour(1, 22) }),
+      makeSignup("perf_nina", "confirmed", { grouped_at: atHour(1, 10) }),
+
+      makeSignup("perf_zoe", "pending", { grouped_at: atHour(2, 55) }),  // yellow example
+      makeSignup("perf_aria", "confirmed", { grouped_at: atHour(2, 30) }),
+      makeSignup("perf_ivy", "confirmed", { grouped_at: atHour(2, 12) }),
+    ];
+
+    const history: SignupRow[] = [
+      makeSignup("perf_luna", "confirmed_done", { done_at: atHour(3, 48) }),
+      makeSignup("perf_kiki", "confirmed_done", { done_at: atHour(3, 20) }),
+      makeSignup("perf_sky", "confirmed_done", { done_at: atHour(4, 57) }),
+      makeSignup("perf_ava", "confirmed_done", { done_at: atHour(4, 15) }),
+      makeSignup("perf_rose", "confirmed_done", { done_at: atHour(5, 40) }),
+    ];
+
+    const standby: SignupRow[] = [
+      makeSignup("perf_noor", "pending", { queued_at: atHour(0, 58), wait_minutes: 12.4 }),
+      makeSignup("perf_sasha", "queued", { queued_at: atHour(0, 44), wait_minutes: 26.1 }),
+      makeSignup("perf_talia", "queued", { queued_at: atHour(0, 31), wait_minutes: 39.7 }),
+      makeSignup("perf_jade", "pending", { queued_at: atHour(0, 20), wait_minutes: 52.0 }),
+      makeSignup("perf_ruby", "queued", { queued_at: atHour(0, 9), wait_minutes: 63.2 }),
+      makeSignup("perf_muse", "queued", { queued_at: atHour(0, 2), wait_minutes: 70.8 }),
+    ];
+
+    const signups: StageSignupsResponse = {
+      shift,
+      standby,
+      assigned,
+      history,
+      metrics: {
+        standby_count: standby.length,
+        assigned_count: assigned.length,
+        history_count: history.length,
+        avg_wait_minutes:
+          standby.length === 0
+            ? 0
+            : standby.reduce((acc, r) => acc + (r.wait_minutes ?? 0), 0) / standby.length,
+      },
+    };
+
+    const pending: CheckinRow[] = [
+      { id: "ci_1", status: "pending", scanned_at: atHour(0, 47), performer_id: "perf_amiri", shift_id: shift.id },
+      { id: "ci_2", status: "pending", scanned_at: atHour(0, 41), performer_id: "perf_noor", shift_id: shift.id },
+      { id: "ci_3", status: "pending", scanned_at: atHour(0, 36), performer_id: "perf_jade", shift_id: shift.id },
+      { id: "ci_4", status: "pending", scanned_at: atHour(0, 29), performer_id: "perf_ruby", shift_id: shift.id },
+    ];
+
+    const approved: CheckinRow[] = [
+      { id: "ci_5", status: "approved", scanned_at: atHour(1, 55), performer_id: "perf_lola", shift_id: shift.id },
+      { id: "ci_6", status: "approved", scanned_at: atHour(2, 11), performer_id: "perf_kiki", shift_id: shift.id },
+      { id: "ci_7", status: "approved", scanned_at: atHour(2, 33), performer_id: "perf_ava", shift_id: shift.id },
+    ];
+
+    return { shift, signups, checkins: { pending, approved } };
+  }, []);
 
   const Background = (
     <>
@@ -281,8 +425,6 @@ export default function WranglerPage() {
     setLoadingClose(true);
     setErr(null);
     try {
-      // Implement this endpoint on your side:
-      // POST /api/shifts/close { shiftId }
       const res = await fetch("/api/shifts/close", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -316,20 +458,29 @@ export default function WranglerPage() {
     }
   }
 
-  // Polling
+  // Polling (short-circuit in mock mode)
   useEffect(() => {
+    if (isMock) {
+      setActiveShift(mock.shift);
+      return;
+    }
     loadActiveShift();
     const i = setInterval(loadActiveShift, 5000);
     return () => clearInterval(i);
-  }, []);
+  }, [isMock, mock.shift]);
 
   useEffect(() => {
+    if (isMock) {
+      setSignups(mock.signups);
+      setCheckins(mock.checkins);
+      return;
+    }
     if (!activeShift?.id) return;
     loadWranglerData(activeShift.id);
     const i = setInterval(() => loadWranglerData(activeShift.id), 5000);
     return () => clearInterval(i);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeShift?.id]);
+  }, [isMock, mock.signups, mock.checkins, activeShift?.id]);
 
   // Stopwatch tick
   useEffect(() => {
@@ -346,14 +497,12 @@ export default function WranglerPage() {
   const historyBuckets = useMemo(() => groupRowsByHour(history, "done_at"), [history]);
 
   const shiftLabel = activeShift?.is_active ? "Open" : "Closed";
-
   const showStopwatch = groupsView === "current" && assigned.length > 0;
 
   return (
     <div className="relative z-0 min-h-screen text-white overflow-hidden">
       {Background}
 
-      {/* add bottom padding so the bottom stage bar never covers content */}
       <div className="relative z-10 mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8 py-10 pb-32">
         {/* Header */}
         <div className="mb-6">
@@ -381,6 +530,12 @@ export default function WranglerPage() {
             </span>
 
             <span className="text-xs text-zinc-100/55">{loadingData ? "Refreshing…" : "Live"}</span>
+
+            {isMock ? (
+              <span className="text-[11px] px-2 py-1 rounded-full border border-white/15 bg-white/5 text-white/70">
+                DEMO MODE
+              </span>
+            ) : null}
           </div>
 
           {err ? (
@@ -392,9 +547,8 @@ export default function WranglerPage() {
 
         {/* Responsive dashboard */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-          {/* LEFT: Groups + Standby */}
+          {/* LEFT */}
           <div className="lg:col-span-8 space-y-6">
-            {/* Groups */}
             <ShellCard
               title="Groups"
               subtitle="Tap tabs to switch views."
@@ -407,7 +561,7 @@ export default function WranglerPage() {
               }
             >
               <div className="lg:h-[560px] lg:overflow-auto lg:pr-1">
-                {/* Top tabs ONLY */}
+                {/* Tabs */}
                 <div className="flex items-center gap-8 text-lg font-semibold mb-3">
                   <button
                     type="button"
@@ -473,7 +627,7 @@ export default function WranglerPage() {
                   </div>
                 )}
 
-                {/* Stopwatch INSIDE Groups, only when there are groups in queue */}
+                {/* Stopwatch inside Groups */}
                 {showStopwatch ? (
                   <div className="mt-6 rounded-3xl border border-white/10 bg-black/25 p-5">
                     <div className="rounded-3xl border border-white/10 bg-white/5 px-6 py-8 text-center">
@@ -491,7 +645,8 @@ export default function WranglerPage() {
                           className="rounded-full px-6 py-3 text-black text-sm font-semibold transition hover:opacity-90 disabled:opacity-50"
                           style={{
                             backgroundColor: GOLD,
-                            boxShadow: "0 0 44px rgba(245,197,66,0.35), 0 0 90px rgba(245,197,66,0.12)",
+                            boxShadow:
+                              "0 0 44px rgba(245,197,66,0.35), 0 0 90px rgba(245,197,66,0.12)",
                           }}
                         >
                           Start
@@ -517,18 +672,6 @@ export default function WranglerPage() {
                         Reset Timer
                       </button>
                     </div>
-
-                    {/* Optional tiny stage stats (you can delete if you want it ultra-minimal) */}
-                    <div className="mt-4 grid grid-cols-2 gap-3">
-                      <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
-                        <p className="text-xs text-white/55">Stage 1</p>
-                        <p className="mt-1 text-sm text-white/85">—</p>
-                      </div>
-                      <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
-                        <p className="text-xs text-white/55">Stage 2</p>
-                        <p className="mt-1 text-sm text-white/85">—</p>
-                      </div>
-                    </div>
                   </div>
                 ) : null}
               </div>
@@ -546,7 +689,7 @@ export default function WranglerPage() {
                       className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3"
                     >
                       <div className="flex items-center justify-between gap-3">
-                        <p className="text-sm font-medium">Performer {shortId(r.performer_id)}</p>
+                        <p className="text-sm font-medium">{displayPerformer(r.performer_id)}</p>
 
                         <span
                           className={[
@@ -560,7 +703,8 @@ export default function WranglerPage() {
 
                       <div className="mt-2 flex items-center justify-between">
                         <p className="text-xs text-zinc-100/60">
-                          Waiting: <span className="text-zinc-100/85">{fmtMinutes(r.wait_minutes)}</span>
+                          Waiting:{" "}
+                          <span className="text-zinc-100/85">{fmtMinutes(r.wait_minutes)}</span>
                         </p>
 
                         <button
@@ -585,7 +729,7 @@ export default function WranglerPage() {
             </ShellCard>
           </div>
 
-          {/* RIGHT: Check-ins only */}
+          {/* RIGHT */}
           <div className="lg:col-span-4 space-y-6">
             <ShellCard title="Check-ins" subtitle="Pending approvals (actions next).">
               <div className="grid grid-cols-2 gap-3">
@@ -615,19 +759,22 @@ export default function WranglerPage() {
                         className="flex items-center justify-between rounded-xl border border-white/10 bg-black/20 px-3 py-2"
                       >
                         <div className="min-w-0">
-                          <p className="text-sm font-medium truncate">Performer {shortId(c.performer_id)}</p>
+                          <p className="text-sm font-medium truncate">
+                            {displayPerformer(c.performer_id)}
+                          </p>
                           <p className="text-xs text-zinc-100/55">
                             Scanned: {new Date(c.scanned_at).toLocaleTimeString()}
                           </p>
                         </div>
 
-                        <button
-                          disabled
-                          className="ml-3 text-xs rounded-full border border-white/15 px-3 py-2 text-white/70 opacity-60"
-                          title="Approval actions next step"
+                        <span
+                          className={[
+                            "ml-3 text-[11px] px-2 py-1 rounded-full border shrink-0",
+                            statusPill(c.status),
+                          ].join(" ")}
                         >
-                          Approve
-                        </button>
+                          {c.status}
+                        </span>
                       </div>
                     ))
                   )}
@@ -640,7 +787,7 @@ export default function WranglerPage() {
         <div className="h-10" />
       </div>
 
-      {/* Bottom Stage Bar (Open/Close lives at the very bottom of the page) */}
+      {/* Bottom Stage Bar */}
       <div className="fixed bottom-0 left-0 right-0 z-30">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pb-4">
           <div className="rounded-3xl border border-white/12 bg-black/35 backdrop-blur-xl shadow-[0_0_70px_rgba(255,255,255,0.10)] p-4">
@@ -685,21 +832,22 @@ export default function WranglerPage() {
               <div className="flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-end">
                 <button
                   onClick={startNewShift}
-                  disabled={loadingShift}
+                  disabled={loadingShift || isMock}
                   className="rounded-full px-5 py-3 text-black text-sm font-semibold transition hover:opacity-90 disabled:opacity-60"
                   style={{
                     backgroundColor: GOLD,
                     boxShadow: "0 0 44px rgba(245,197,66,0.40), 0 0 90px rgba(245,197,66,0.16)",
                   }}
+                  title={isMock ? "Disabled in demo mode" : undefined}
                 >
                   {loadingShift ? "Opening…" : "Open Stage"}
                 </button>
 
                 <button
                   onClick={closeShift}
-                  disabled={!activeShift?.is_active || loadingClose}
+                  disabled={!activeShift?.is_active || loadingClose || isMock}
                   className="rounded-full px-5 py-3 text-sm border border-white/20 text-white/90 transition hover:border-white/35 hover:bg-white/5 disabled:opacity-50"
-                  title="Requires POST /api/shifts/close"
+                  title={isMock ? "Disabled in demo mode" : "Requires POST /api/shifts/close"}
                 >
                   {loadingClose ? "Closing…" : "Close Stage"}
                 </button>
