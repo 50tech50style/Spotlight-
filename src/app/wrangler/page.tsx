@@ -80,9 +80,16 @@ function statusPill(status: string) {
   if (s.includes("confirm")) return "bg-emerald-500/15 text-emerald-200 border-emerald-500/25";
   if (s.includes("approved")) return "bg-emerald-500/15 text-emerald-200 border-emerald-500/25";
   if (s.includes("cancel")) return "bg-red-500/15 text-red-200 border-red-500/25";
+  if (s.includes("no show") || s.includes("noshow"))
+    return "bg-red-500/15 text-red-200 border-red-500/25";
   if (s.includes("pending")) return "bg-yellow-500/15 text-yellow-100 border-yellow-500/25";
   if (s.includes("queued")) return "bg-white/10 text-zinc-100 border-white/10";
   return "bg-white/10 text-zinc-100 border-white/10";
+}
+
+function isSwapNeeded(status: string) {
+  const s = status.toLowerCase();
+  return s.includes("cancel") || s.includes("no show") || s.includes("noshow");
 }
 
 function fmtMinutes(n: number | null) {
@@ -172,12 +179,7 @@ function Chip({
   className?: string;
 }) {
   return (
-    <span
-      className={[
-        "inline-flex items-center rounded-lg border px-3 py-2 text-sm",
-        className,
-      ].join(" ")}
-    >
+    <span className={["inline-flex items-center rounded-lg border px-3 py-2 text-sm", className].join(" ")}>
       {children}
     </span>
   );
@@ -187,10 +189,12 @@ function TimeBucketRow({
   label,
   items,
   chevron = "right",
+  onRequestSwap,
 }: {
   label: string;
   items: SignupRow[];
   chevron?: "right" | "down";
+  onRequestSwap?: (row: SignupRow) => void;
 }) {
   const preview = items.slice(0, 3);
   const extra = items.length - preview.length;
@@ -205,14 +209,32 @@ function TimeBucketRow({
       <div className="mt-3 border-t border-white/10" />
 
       <div className="mt-3 flex flex-wrap gap-2">
-        {preview.map((r) => (
-          <Chip key={r.id} className={statusPill(r.status)}>
-            {displayPerformer(r.performer_id)}
-          </Chip>
-        ))}
-        {extra > 0 ? (
-          <Chip className="border-white/10 bg-white/5 text-white/75">+{extra}</Chip>
-        ) : null}
+        {preview.map((r) => {
+          const clickable = Boolean(onRequestSwap) && isSwapNeeded(r.status);
+          const cls = ["border", statusPill(r.status)].join(" ");
+
+          return clickable ? (
+            <button
+              key={r.id}
+              type="button"
+              onClick={() => onRequestSwap?.(r)}
+              className={[
+                "inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm transition hover:opacity-90",
+                cls,
+              ].join(" ")}
+              title="Swap this performer"
+            >
+              {displayPerformer(r.performer_id)}
+              <span className="text-white/60 text-base leading-none">i</span>
+            </button>
+          ) : (
+            <Chip key={r.id} className={cls}>
+              {displayPerformer(r.performer_id)}
+            </Chip>
+          );
+        })}
+
+        {extra > 0 ? <Chip className="border-white/10 bg-white/5 text-white/75">+{extra}</Chip> : null}
       </div>
     </div>
   );
@@ -244,6 +266,10 @@ export default function WranglerPage() {
   }, [elapsedMs]);
 
   const [groupsView, setGroupsView] = useState<"current" | "history">("current");
+
+  // Swap sheet state
+  const [swapOpen, setSwapOpen] = useState(false);
+  const [swapFrom, setSwapFrom] = useState<SignupRow | null>(null);
 
   const isMock =
     typeof window !== "undefined" &&
@@ -282,17 +308,17 @@ export default function WranglerPage() {
       ...fields,
     });
 
-    // Make statuses match your statusPill() rules
+    // Include at least one RED status in assigned so you can demo the swap UI
     const assigned: SignupRow[] = [
       makeSignup("perf_amiri", "confirmed", { grouped_at: atHour(0, 42) }),
       makeSignup("perf_diamond", "confirmed", { grouped_at: atHour(0, 18) }),
-      makeSignup("perf_barbie", "confirmed", { grouped_at: atHour(0, 5) }),
+      makeSignup("perf_barbie", "canceled", { grouped_at: atHour(0, 5) }), // red — clickable
 
       makeSignup("perf_lola", "confirmed", { grouped_at: atHour(1, 50) }),
       makeSignup("perf_mila", "confirmed", { grouped_at: atHour(1, 22) }),
       makeSignup("perf_nina", "confirmed", { grouped_at: atHour(1, 10) }),
 
-      makeSignup("perf_zoe", "pending", { grouped_at: atHour(2, 55) }),  // yellow example
+      makeSignup("perf_zoe", "pending", { grouped_at: atHour(2, 55) }), // yellow example
       makeSignup("perf_aria", "confirmed", { grouped_at: atHour(2, 30) }),
       makeSignup("perf_ivy", "confirmed", { grouped_at: atHour(2, 12) }),
     ];
@@ -499,6 +525,59 @@ export default function WranglerPage() {
   const shiftLabel = activeShift?.is_active ? "Open" : "Closed";
   const showStopwatch = groupsView === "current" && assigned.length > 0;
 
+  function openSwap(row: SignupRow) {
+    setSwapFrom(row);
+    setSwapOpen(true);
+  }
+
+  function closeSwap() {
+    setSwapOpen(false);
+    setSwapFrom(null);
+  }
+
+  // Demo-only swap: replace a "bad" assigned row with a standby row
+  function applyMockSwap(from: SignupRow, to: SignupRow) {
+    if (!signups) return;
+    const nowIso = new Date().toISOString();
+
+    const nextAssigned = signups.assigned
+      .filter((r) => r.id !== from.id)
+      .concat([{ ...to, grouped_at: nowIso, queued_at: null, wait_minutes: null }]);
+
+    const nextStandby = signups.standby.filter((r) => r.id !== to.id);
+
+    const next = {
+      ...signups,
+      assigned: nextAssigned,
+      standby: nextStandby,
+      metrics: {
+        ...signups.metrics,
+        assigned_count: nextAssigned.length,
+        standby_count: nextStandby.length,
+        avg_wait_minutes:
+          nextStandby.length === 0
+            ? 0
+            : nextStandby.reduce((acc, r) => acc + (r.wait_minutes ?? 0), 0) / nextStandby.length,
+      },
+    };
+
+    setSignups(next);
+  }
+
+  async function swapPerformer(from: SignupRow, to: SignupRow) {
+    if (isMock) {
+      applyMockSwap(from, to);
+      return;
+    }
+
+    // TODO: Wire this endpoint when ready
+    // POST /api/wrangler/swap { shiftId, fromSignupId, toSignupId }
+    //
+    // For now, just close the sheet so it doesn't feel broken.
+    // If you want, I can also create the API route file for you next.
+    return;
+  }
+
   return (
     <div className="relative z-0 min-h-screen text-white overflow-hidden">
       {Background}
@@ -551,7 +630,7 @@ export default function WranglerPage() {
           <div className="lg:col-span-8 space-y-6">
             <ShellCard
               title="Groups"
-              subtitle="Tap tabs to switch views."
+              subtitle="Tap tabs to switch views. Red chips can be swapped."
               className="lg:min-h-[640px]"
               right={
                 <div className="text-right">
@@ -606,6 +685,7 @@ export default function WranglerPage() {
                           label={b.label}
                           items={b.items}
                           chevron="right"
+                          onRequestSwap={openSwap}
                         />
                       ))}
                     </div>
@@ -684,10 +764,7 @@ export default function WranglerPage() {
                   <p className="text-sm text-zinc-100/60">No one in standby.</p>
                 ) : (
                   standby.map((r) => (
-                    <div
-                      key={r.id}
-                      className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3"
-                    >
+                    <div key={r.id} className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3">
                       <div className="flex items-center justify-between gap-3">
                         <p className="text-sm font-medium">{displayPerformer(r.performer_id)}</p>
 
@@ -786,6 +863,86 @@ export default function WranglerPage() {
 
         <div className="h-10" />
       </div>
+
+      {/* Swap Sheet */}
+      {swapOpen && swapFrom ? (
+        <div className="fixed inset-0 z-[60]">
+          <button
+            className="absolute inset-0 bg-black/60"
+            onClick={closeSwap}
+            aria-label="Close swap"
+          />
+
+          <div className="absolute bottom-0 left-0 right-0 mx-auto max-w-2xl p-4">
+            <div className="rounded-3xl border border-white/12 bg-black/50 backdrop-blur-xl shadow-[0_0_70px_rgba(255,255,255,0.12)] p-5">
+              <div className="flex items-start justify-between gap-4">
+                <div className="min-w-0">
+                  <p className="text-xs text-white/55 tracking-[0.2em] uppercase">Swap</p>
+                  <p className="mt-2 text-lg font-semibold truncate">
+                    Replace {displayPerformer(swapFrom.performer_id)}
+                  </p>
+                  <p className="mt-1 text-sm text-white/60">
+                    Choose someone from Standby.
+                  </p>
+                </div>
+
+                <button
+                  onClick={closeSwap}
+                  className="rounded-full border border-white/15 bg-white/5 px-3 py-2 text-sm text-white/80 hover:bg-white/10"
+                >
+                  Close
+                </button>
+              </div>
+
+              <div className="mt-4 space-y-2 max-h-[45vh] overflow-auto pr-1">
+                {standby.length === 0 ? (
+                  <div className="rounded-2xl border border-white/10 bg-black/20 p-4 text-white/60">
+                    No one in standby.
+                  </div>
+                ) : (
+                  standby.map((s) => (
+                    <button
+                      key={s.id}
+                      onClick={async () => {
+                        await swapPerformer(swapFrom, s);
+                        closeSwap();
+                      }}
+                      className="w-full text-left rounded-2xl border border-white/10 bg-black/20 px-4 py-3 hover:bg-white/5 transition"
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium truncate">
+                            {displayPerformer(s.performer_id)}
+                          </p>
+                          <p className="text-xs text-white/55 mt-1">
+                            Wait:{" "}
+                            <span className="text-white/80">{fmtMinutes(s.wait_minutes)}</span>
+                          </p>
+                        </div>
+
+                        <span
+                          className={[
+                            "text-[11px] px-2 py-1 rounded-full border shrink-0",
+                            statusPill(s.status),
+                          ].join(" ")}
+                        >
+                          {s.status}
+                        </span>
+                      </div>
+                    </button>
+                  ))
+                )}
+              </div>
+
+              <div className="mt-4 text-xs text-white/45">
+                {isMock
+                  ? "Demo mode: swap updates the UI instantly."
+                  : "Next: wire this to POST /api/wrangler/swap for real swaps."}
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {/* Bottom Stage Bar */}
       <div className="fixed bottom-0 left-0 right-0 z-30">
